@@ -3,72 +3,69 @@
     <meta charset="UTF-8">
     <title>Wyn Reports Sample</title>
     <link rel="stylesheet" href="index.css" />
+    <script src="./node_modules/@grapecity/wyn-integration/build/WynIntegration.js"></script>
     <script type="text/javascript" src="index.js"></script>
 </head>
 <body onload="init()">
-    <div>
-        <!-- signInForm -->
-        <div id="sign-in-root" class="not-displayed">
-            <label id="sign-in-error" class="sign-in-error"></label>
-            <div class="sign-in-form">
-                <div class="sign-in-control">
-                    <input autoFocus type="text" class="sign-in-input" id="sign-in-portal-url" placeholder="Portal URL" />
+    <!-- signInForm -->
+    <div id="sign-in-root" class="not-displayed">
+        <label id="sign-in-error" class="sign-in-error"></label>
+        <div class="sign-in-form">
+            <div class="sign-in-control">
+                <input autoFocus type="text" class="sign-in-input" id="sign-in-portal-url" placeholder="Portal URL" />
+            </div>
+            <div class="sign-in-control">
+                <input autoFocus type="text" class="sign-in-input" id="sign-in-username" placeholder="Username" />
+            </div>
+            <div class="sign-in-control">
+                <input autoFocus type="password" class="sign-in-input" id="sign-in-password" placeholder="Password" />
+            </div>
+            <button id="sign-in-button" class="sign-in-button">Sign In</button>
+        </div>
+    </div>
+
+    <!-- app -->
+    <div id="app-root" class="app not-displayed">
+        <!-- appSidebar -->
+        <div class="app-sidebar">
+            <div class="app-sidebar-header">
+                <div class="app-sidebar-header-group">
+                    <div id="app-portal-url"></div>
                 </div>
-                <div class="sign-in-control">
-                    <input autoFocus type="text" class="sign-in-input" id="sign-in-username" placeholder="Username" />
+                <div class="app-sidebar-header-group app-user-info">
+                    <div>
+                        <div id="app-username"></div>
+                        <div id="app-org"></div>
+                    </div>
+                    <button id="app-logout-button" class="app-sidebar-btn app-logout-button">Log Out</button>
                 </div>
-                <div class="sign-in-control">
-                    <input autoFocus type="password" class="sign-in-input" id="sign-in-password" placeholder="Password" />
+                <div class="app-sidebar-header-group">
+                    <button id="app-create-rdl-report" class="btnApp app-sidebar-btn app-create-report-btn" type="button">Create Blank RDL Report</button>
+                    <button id="app-create-page-report" class="btnApp app-sidebar-btn app-create-report-btn" type="button">Create Blank Page Report</button>
+                    <button id="app-open-report-designer" class="btnApp app-sidebar-btn app-create-report-btn" type="button">Open selected report in Designer</button>
                 </div>
-                <button id="sign-in-button" class="sign-in-button">Sign In</button>               
+            </div>
+
+            <div class="app-sidebar-content">
+                <ul multiple="multiple" id="wyn-report-list" class="wyn-report-list"></ul>
             </div>
         </div>
-
-        <!-- app -->
-        <div id="app-root" class="app not-displayed">
-            <!-- appSidebar -->
-            <div class="app-sidebar">
-                <div class="app-sidebar-header">
-                    <div class="app-sidebar-header-group">
-                        <div id="app-portal-url"></div>
-                    </div>
-                    <div class="app-sidebar-header-group app-user-info">
-                        <div>
-                            <div id="app-username"></div>
-                            <div id="app-org"></div>
-                        </div>
-                        <button id="app-logout-button" class="app-sidebar-btn app-logout-button">Log Out</button>
-                    </div>
-                    <div class="app-sidebar-header-group">
-                        <button id="app-create-rdl-report" class="app-sidebar-btn app-create-report-btn" type="button">Create Blank RDL Report</button>
-                        <button id="app-create-page-report" class="app-sidebar-btn app-create-report-btn" type="button">Create Blank Page Report</button>
-                        <button id="app-open-report-designer" class="app-sidebar-btn app-create-report-btn" type="button">Open selected report in Designer</button>
-                    </div>
-                </div>
-
-                <div class="app-sidebar-content">
-                    <ul multiple="multiple" id="wyn-report-list" class="wyn-report-list"></ul>
-                </div>
-            </div>
-            <!-- designer -->
-            <div id="app-designer-instructions" class="app-instructions not-displayed">
-                <p>Getting started:</p>
-                <ol class="app-instructions-list">
-                    <li class="app-instructions-item">
-                        Create a new report - click "Create Blank RDL Report" or "Create Blank Page Report" button to create a new blank RDL or Page report respectively.
-                    </li>
-                    <li class="app-instructions-item">
-                        Open an existing report in the viewer - click the needed report in the list.
-                    </li>
-                    <li class="app-instructions-item">
-                        Open an existing report in the designer - click the needed report in the list and then click "Open selected report in Designer".
-                    </li>
-                </ol>
-            </div>
-            <div id="report-designer-app" class="not-displayed"></div>
-            <div id="report-viewer-app" class="not-displayed"></div>
+        <!-- designer -->
+        <div id="app-designer-instructions" class="app-instructions not-displayed">
+            <p>Getting started:</p>
+            <ol class="app-instructions-list">
+                <li class="app-instructions-item">
+                    Create a new report - click "Create Blank RDL Report" or "Create Blank Page Report" button to create a new blank RDL or Page report respectively.
+                </li>
+                <li class="app-instructions-item">
+                    Open an existing report in the viewer - click the needed report in the list.
+                </li>
+                <li class="app-instructions-item">
+                    Open an existing report in the designer - click the needed report in the list and then click "Open selected report in Designer".
+                </li>
+            </ol>
         </div>
-    </div>   
-
+        <div id="wyn-root"></div>
+    </div>
 </body>
 </html>

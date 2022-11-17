@@ -1,4 +1,7 @@
 var areScriptsAdded = false;
+var wynIntegration = null;
+var instance = null;
+var selectedReport = null;
 
 function concatUrls(base, rest) {
     base = base.trim();
@@ -26,19 +29,19 @@ const addCssLink = (cssUrl) => {
     head.appendChild(link);
 };
 
-const addDesignerAndViewerJSandCssLinks = (portalUrl, pluginVersion, theme) => {
-    const themeSuffix = theme !== 'default' ? `.${theme}` : '';
-    const viewerCssUrl = concatUrls(portalUrl, `api/pluginassets/reports-${pluginVersion}/viewer-app${themeSuffix}.css`);
-    const designerCssUrl = concatUrls(portalUrl, `api/pluginassets/reports-${pluginVersion}/designer-app.css`);
+//const addDesignerAndViewerJSandCssLinks = (portalUrl, pluginVersion, theme) => {
+//    const themeSuffix = theme !== 'default' ? `.${theme}` : '';
+//    const viewerCssUrl = concatUrls(portalUrl, `api/pluginassets/reports-${pluginVersion}/viewer-app${themeSuffix}.css`);
+//    const designerCssUrl = concatUrls(portalUrl, `api/pluginassets/reports-${pluginVersion}/designer-app.css`);
 
-    const viewerJsUrl = concatUrls(portalUrl, `api/pluginassets/reports-${pluginVersion}/viewer-app.js`);
-    const designerJsUrl = concatUrls(portalUrl, `api/pluginassets/reports-${pluginVersion}/designer-app.js`);
+//    const viewerJsUrl = concatUrls(portalUrl, `api/pluginassets/reports-${pluginVersion}/viewer-app.js`);
+//    const designerJsUrl = concatUrls(portalUrl, `api/pluginassets/reports-${pluginVersion}/designer-app.js`);
 
-    addJsLink(viewerJsUrl);
-    addJsLink(designerJsUrl);
-    addCssLink(viewerCssUrl);
-    addCssLink(designerCssUrl);
-};
+//    addJsLink(viewerJsUrl);
+//    addJsLink(designerJsUrl);
+//    addCssLink(viewerCssUrl);
+//    addCssLink(designerCssUrl);
+//};
 
 const defaultHeaders = {
     'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -64,16 +67,12 @@ const postGraphQlRequest = async (portalUrl, referenceToken, requestPayload) => 
     return result;
 };
 
-const getReportingInfo = async (portalUrl, referenceToken) => {
+const getReportInfo = async (portalUrl, referenceToken, reportId) => {
     const result = await postGraphQlRequest(portalUrl, referenceToken, {
-        query: 'query { me { language, themeName }, reportingInfo { version } }',
+        query: 'query { reportInfo(reportId: "' + reportId + '") { name, parameters { name, prompt, validValues { values { label, value } } defaultValue { values }} } }',
     });
-    const { data: { me: { language, themeName }, reportingInfo: { version } } } = result;
-    return {
-        pluginVersion: version,
-        theme: themeName,
-        locale: language,
-    };
+    const { data: { reportInfo } } = result;
+    return reportInfo;
 };
 
 async function getReferenceToken(url, user, password) {
@@ -93,6 +92,35 @@ async function getReferenceToken(url, user, password) {
         body: `grant_type=password&username=${user}&password=${password}&client_id=integration&client_secret=eunGKas3Pqd6FMwx9eUpdS7xmz`,
     }).then(async response => {
         let res = await resolveResponse(response)
+        return res;
+    }).catch(error => {
+        alert(error);
+        return null;
+    });
+}
+
+async function getAvailableValues(url, token, reportId, values, requestNames) {
+
+    const endpoint = concatUrls(url, '/api/reporting/reports/' + reportId + '/values2?token=' + token);
+    const request = requestNames.reduce((acc, name) => ({ ...acc, [name]: null }), {});
+    const body = { values, request };
+
+    const resolveResponse = async (response) => {
+        const jsonResponse = await response.json();
+        if (jsonResponse.error) return null;
+        console.log(jsonResponse);
+        return jsonResponse;
+    }
+
+    return await fetch(endpoint, {
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: '*/*',
+        },
+        method: 'post',
+        body: body,
+    }).then(async response => {
+        let res = await resolveResponse(response);
         return res;
     }).catch(error => {
         alert(error);
@@ -187,6 +215,7 @@ const createAppSidebar = (portalUrl, username, referenceToken) => {
         item.onclick = () => {
             removeActiveReport();
             item.classList.add('active');
+            selectedReport = report;
             appSidebar.onOpenReport(report);
         };
         return item;
@@ -233,115 +262,77 @@ const createAppSidebar = (portalUrl, username, referenceToken) => {
         appSidebar.onCreateReport('FPL');
     };
     document.getElementById('app-open-report-designer').onclick = () => {
-        removeActiveReport();
-        appSidebar.onReportInDesigner();
+        //removeActiveReport();
+        appSidebar.onReportInDesigner(selectedReport);
     };
+
     document.getElementById('app-logout-button').onclick = () => { appSidebar.onLogOut(); };
 
     return appSidebar;
 };
 
-const createViewer = async (portalUrl, referenceToken, username) => {
-    const prevDocumentTitle = document.title;
-
-    const reportViewerAppId = 'report-viewer-app';
-    let viewer = window.GrapeCity.WynReports.Viewer.create({
-        element: reportViewerAppId,
-        portalUrl,
-        referenceToken,
-        locale: 'en',
-        makeTitle: (reportName) => reportName,
-    });
-    return {
-        openReport: async (report) => {
-            await viewer.openReport(report.id);
-            document.getElementById(reportViewerAppId).classList.remove('not-displayed');
-        },
-        close: () => {
-            if (viewer) {
-                viewer.destroy();
-                viewer = null;
-            }
-            document.getElementById(reportViewerAppId).classList.add('not-displayed');
-            document.title = prevDocumentTitle;
-        },
-    };
+const clearContainer = () => {
+    const container = document.querySelector('#wyn-root');
+    if (container) container.innerHTML = '';
 }
 
-const createDesigner = async (portalUrl, referenceToken, onSavedReport) => {
-    const prevDocumentTitle = document.title;
+const createViewer = async (portalUrl, referenceToken, report) => {
 
-    const designerOptions = window.GrapeCity.WynReports.Designer.createDesignerOptions(portalUrl, referenceToken);
-    designerOptions.locale = 'en';
-    designerOptions.onSaved = onSavedReport;
+    if (instance) {
+        instance.destroy();
+        clearContainer();
+    }
 
-    designerOptions.makeTitle = (reportName, options) => {
-        const title = `${reportName}${options.dirty ? ' *' : ''}`;
-        return title;
-    };
+    wynIntegration.createReportViewer({
+        baseUrl: portalUrl,
+        reportId: report.id,
+        lng: 'en',
+        token: referenceToken,
+        // for v5.0, v5.1 ignore
+        //version: '5.0.21782.0',
+    }, '#wyn-root').then(ins => {
+        instance = ins;
+    });
+}
 
-    let viewer = null;
-    designerOptions.openViewer = (options) => {
-        if (!viewer) {
-            viewer = window.GrapeCity.WynReports.Viewer.create({
-                element: options.element,
-                portalUrl,
-                referenceToken,
-                locale: options.locale,
-            });
-        }
+const createDesigner = async (portalUrl, referenceToken, onSavedReport, report, reportType) => {
 
-        viewer.openReport(options.reportInfo.id);
-    };
+    if (instance) {
+        instance.destroy();
+        clearContainer();
+    }
 
-    await window.GrapeCity.WynReports.Designer.renderApplication('report-designer-app', designerOptions);
-    const reportDesignerApp = document.getElementById('report-designer-app');
-
-    return {
-        createReport: (reportType) => {
-            window.GrapeCity.WynReports.Designer.closeViewer();
-            window.GrapeCity.WynReports.Designer.api.createReport({
-                reportType: (reportType || '').toUpperCase() === 'FPL' ? 'FPL' : 'CPL',
-            });
-            reportDesignerApp.classList.remove('not-displayed');
+    let reportId = report != null ? report.id : '';
+    wynIntegration.createReportDesigner({
+        baseUrl: portalUrl,
+        reportId: reportId,
+        lng: 'en',
+        token: referenceToken,
+        onSaved: onSavedReport,
+        makeTitle: (reportName, options) => {
+            const title = `${reportName}${options.dirty ? ' *' : ''}`;
+            return title;
         },
-        openReportInDesigner: (report) => {
-            window.GrapeCity.WynReports.Designer.closeViewer();
-            const reportInfo = {
-                id: report.id,
-                name: report.name,
-                permissions: ['all'],
-            };
-            window.GrapeCity.WynReports.Designer.api.openReport({ reportInfo });
-            reportDesignerApp.classList.remove('not-displayed');
-        },
-        openReport: (report) => {
-            window.GrapeCity.WynReports.Designer.closeViewer();
-            const reportInfo = {
-                id: report.id,
-                name: report.name,
-                permissions: ['all'],
-            };
-            window.GrapeCity.WynReports.Designer.api.openReport({ reportInfo });
-            reportDesignerApp.classList.remove('not-displayed');
-        },
-        close: () => {
-            if (viewer) {
-                viewer.destroy();
-                viewer = null;
-            }
-            window.GrapeCity.WynReports.Designer.destroy();
-            reportDesignerApp.classList.add('not-displayed');
-            document.title = prevDocumentTitle;
-        },
-    };
+        // for v5.0, v5.1 ignore
+        //version: '5.0.21782.0',
+    }, '#wyn-root').then(ins => {
+        instance = ins;
+        instance.closeViewer();
+        instance.api.createReport({ reportType });
+    });
+
 };
 
 const showApp = function () {
+    wynIntegration = WynIntegration.WynIntegration;
     document.getElementById('app-root').classList.remove('not-displayed');
     setTimeout(() => {
         document.getElementById('app-designer-instructions').classList.remove('not-displayed');
     }, 50);
+}
+
+function toggleVisible() {
+    document.getElementById('parametersPanel').className = "hide";
 }
 
 function init() {
@@ -351,30 +342,20 @@ function init() {
         if (!referenceToken)
             throw new Error('Invalid user name or password.')
 
-        if (!areScriptsAdded) {
-            const info = await getReportingInfo(portalUrl, referenceToken);
-            await addDesignerAndViewerJSandCssLinks(portalUrl, info.pluginVersion, info.theme);
-            areScriptsAdded = true;
-        }
-
         setTimeout(async () => {
             var rpt = null;
             const appSidebar = await createAppSidebar(portalUrl, username, referenceToken);
-            const viewer = await createViewer(portalUrl, referenceToken, username);
-            const designer = await createDesigner(portalUrl, referenceToken, appSidebar.onSavedReport);
 
             appSidebar.onCreateReport = (reportType) => {
-                designer.createReport(reportType);
-                document.getElementById('report-viewer-app').classList.add('not-displayed');
+                createDesigner(portalUrl, referenceToken, null, null, reportType);
             };
             appSidebar.onOpenReport = async (report) => {
                 rpt = report;
-                viewer.openReport(report);
-                document.getElementById('report-designer-app').classList.add('not-displayed');
+                document.getElementById('app-designer-instructions').classList.add('not-displayed');
+                createViewer(portalUrl, referenceToken, report);
             };
-            appSidebar.onReportInDesigner = async (report) => {
-                designer.openReportInDesigner(rpt);
-                document.getElementById('report-viewer-app').classList.add('not-displayed');
+            appSidebar.onReportInDesigner = async (report) => {                
+                createDesigner(portalUrl, referenceToken, appSidebar.onSavedReport, report);
             }
             await appSidebar.refreshReportsList();
             showApp();
