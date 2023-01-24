@@ -3,3 +3,4 @@ node_modules/
 .vs/
 Web.config
 package-lock.json
+/WynReportsEmbeddedSample_JS.sln
